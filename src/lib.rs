@@ -24,29 +24,43 @@ impl Model {
         Ok(Model { vm, id2str, str2id })
     }
 
-    #[pyo3(signature = (word, senseno, num_neighbors=10, min_freq=5))]
-    fn py_nn(&self, word: String, senseno: usize, num_neighbors: usize, min_freq: usize) -> PyResult<Vec<(String, u32, f32)>> {
+    #[pyo3(name="nearest", signature = (word, senseno, num_neighbors=10, min_freq=5))]
+    fn py_nearest(&self, word: String, senseno: usize, num_neighbors: usize, min_freq: usize) -> PyResult<Vec<(String, u32, f32)>> {
         let head_id = match self.str2id.get(&word) {
             Some(id) => *id,
             None => { return Err(PyValueError::new_err(format!("not in model lexicon: {}", word))); },
         };
 
-        /*
-        if senseno >= vm.in_vecs.len_of(Axis(1)) {
-            return Err(PyValueError::new_err(
-                format!("invalid sense number {}, model has {} senses",
-                    senseno, vm.in_vecs.len_of(Axis(1)) )));
-        }*/
-
         let hv = adagram::nn::nearest(&self.vm, head_id as usize, senseno, num_neighbors, min_freq);
-        for (i, j, sim) in hv.iter() {
-            println!("{} {} {}", sim, self.id2str[*i as usize], j);
-        }
-
-        Ok(hv.iter().map(
+        Ok(hv.into_iter().map(
             |(i, j, sim)|
-                (self.id2str[*i as usize].clone(), *j, *sim)
+                (self.id2str[i as usize].clone(), j, sim)
             ).collect())
+    }
+
+    #[pyo3(name="desamb", signature = (word, ctx))]
+    fn desamb(&self, word: String, ctx: Vec<String>) -> PyResult<(Vec<f64>, (u32, usize, usize))> {
+        let head_id = match self.str2id.get(&word) {
+            Some(id) => *id,
+            None => { return Err(PyValueError::new_err(format!("not in model lexicon: {}", word))); },
+        };
+
+        let mut nvalid = 0;
+        let mut ninvalid = 0;
+
+        let mut z = self.vm.newz();
+
+        let n_senses = self.vm.expected_pi(head_id, &mut z, 0.001, false);
+        for ctxword in ctx {
+            let ctx_id = match self.str2id.get(&ctxword) {
+                Some(n) => { nvalid += 1; *n },
+                None => { ninvalid += 1; continue; },
+            };
+            self.vm.var_update_z(head_id, ctx_id, &mut z);
+        }
+        adagram::common::exp_normalize(&mut z);
+
+        Ok((z.to_vec(), (n_senses, nvalid, ninvalid)))
     }
 }
 
