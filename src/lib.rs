@@ -62,6 +62,22 @@ impl Model {
 
         Ok((z.to_vec(), (n_senses, nvalid, ninvalid)))
     }
+
+    #[pyo3(name="nearest_mmul", signature = (word, num_neighbors=10, min_freq=5))]
+    fn py_nearest_mmul(&self, word: String, num_neighbors: usize, min_freq: usize) -> PyResult<Vec<Vec<(String, u32, f32)>>> {
+        let head_id = match self.str2id.get(&word) {
+            Some(id) => *id,
+            None => { return Err(PyValueError::new_err(format!("not in model lexicon: {}", word))); },
+        };
+
+        let hvs = adagram::nn::nearest_mmul(&self.vm, head_id as usize, num_neighbors, min_freq);
+        Ok(hvs.into_iter().map(
+            |hv| hv.into_iter().map(
+                |(i, j, sim)|
+                    (self.id2str[i as usize].clone(), j, sim)
+            ).collect()
+        ).collect())
+    }
 }
 
 
