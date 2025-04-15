@@ -63,8 +63,8 @@ impl Model {
         Ok((z.to_vec(), (n_senses, nvalid, ninvalid)))
     }
 
-    #[pyo3(name="nearest_mmul", signature = (word, num_neighbors=10, min_freq=5))]
-    fn py_nearest_mmul(&self, word: String, num_neighbors: usize, min_freq: usize) -> PyResult<Vec<Vec<(String, u32, f32)>>> {
+    #[pyo3(name="nearest_all", signature = (word, num_neighbors=10, min_freq=5))]
+    fn py_nearest_all(&self, word: String, num_neighbors: usize, min_freq: usize) -> PyResult<Vec<Vec<(String, u32, f32)>>> {
         let head_id = match self.str2id.get(&word) {
             Some(id) => *id,
             None => { return Err(PyValueError::new_err(format!("not in model lexicon: {}", word))); },
