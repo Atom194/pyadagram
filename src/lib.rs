@@ -24,14 +24,17 @@ impl Model {
         Ok(Model { vm, id2str, str2id })
     }
 
-    #[pyo3(name="nearest", signature = (word, senseno, num_neighbors=10, min_freq=5))]
-    fn py_nearest(&self, word: String, senseno: usize, num_neighbors: usize, min_freq: usize) -> PyResult<Vec<(String, u32, f32)>> {
+    #[pyo3(name="nearest", signature = (word, senseno, num_neighbors=10, min_freq=5, min_prob=1e-3))]
+    fn py_nearest(&self, word: String, senseno: usize, num_neighbors: usize, min_freq: usize, min_prob: f64) -> PyResult<Vec<(String, u32, f32)>> {
         let head_id = match self.str2id.get(&word) {
             Some(id) => *id,
             None => { return Err(PyValueError::new_err(format!("not in model lexicon: {}", word))); },
         };
 
-        let hv = adagram::nn::nearest(&self.vm, head_id as usize, senseno, num_neighbors, min_freq);
+        let hv = adagram::nn::nearest_mmul(&self.vm, head_id as usize, num_neighbors, min_freq, min_prob)
+            .into_iter()
+            .find_map(|(sn, hv)| if sn == senseno { Some(hv) } else { None })
+            .unwrap_or_default();
         Ok(hv.into_iter().map(
             |(i, j, sim)|
                 (self.id2str[i as usize].clone(), j, sim)
