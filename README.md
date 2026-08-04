@@ -46,7 +46,7 @@ Methods:
   min_prob=1e-3)` returns one contextual embedding per input token. The result
   contains a float list for each known word and `None` for each OOV word. With
   `weighted=True`, each vector is the posterior-weighted mean of its sense
-  vectors; with `weighted=False`, it is the MAP sense vector.
+  vectors; with `weighted=False`, it is the maximum probability sense vector.
 - `model.nearest(word, senseno, num_neighbors=10, min_freq=5, min_prob=1e-3)`
   returns nearest neighbors for one sense as
   `[(neighbor_word, neighbor_sense, similarity), ...]`
@@ -72,7 +72,7 @@ underlying Rust loader.
 ```python
 import adagram
 
-model = adagram.Model("model.w4.bin")
+model = adagram.Model("MODEL")
 
 bank_id = model.str2id("bank-n")
 if bank_id is not None:
@@ -81,16 +81,15 @@ if bank_id is not None:
     bank_sense_0 = model.embedding(bank_id, 0, normalize=True)
 
 words = ["the-x", "bank-n", "raised-v", "rates-n"]
-soft_embeddings = model.embeddings(words)
-map_embeddings = model.embeddings(words, weighted=False, normalize=True)
+soft_embeddings = model.embeddings_sent(words)
+map_embeddings = model.embeddings_sent(words, weighted=False, normalize=True)
 
 assert len(soft_embeddings) == len(words)
 assert soft_embeddings[0] is None or len(soft_embeddings[0]) == model.dim()
 ```
 
-## Appendix example
+## Example
 
-The thesis appendix uses `pyadagram` like this:
 
 ```python
 import adagram
@@ -107,7 +106,7 @@ nns[2]   # sense 2: power bank
 nns[4]   # sense 4: river bank
 # (4, [('edge-n', 8, 0.922), ('eastern-j', 3, 0.908)])
 
-sdist, (nsenses, ctx_valid, ctx_oov) = model.disamb(
+sdist, (nsenses, ctx_valid, ctx_oov) = model.desamb(
     "bank-n",
     ["charge-v", "phone-n"],
 )
@@ -115,4 +114,3 @@ sdist, (nsenses, ctx_valid, ctx_oov) = model.disamb(
 # ['2:0.45', '8:0.30', '17:0.18']
 ```
 
-`MODEL` should be replaced with a trained Adaptive Skip-gram model path created with the `learn` binary from the upstream `adagram` repository.
