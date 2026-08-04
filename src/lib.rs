@@ -1,3 +1,6 @@
+//#[path = "../global_alloc.rs"]
+mod global_alloc;
+
 use pyo3::exceptions::{PyIndexError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
