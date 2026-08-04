@@ -2,8 +2,9 @@
 
 `pyadagram` is a small Python extension module built with PyO3 on top of the
 [`adagram`](https://github.com/ondra/adagram) Rust crate. It exposes model
-loading, nearest-neighbor queries, and contextual disambiguation for Adaptive
-Skip-gram models from Python.
+loading, lexicon and vector access, sentence embeddings, nearest-neighbor
+queries, and contextual disambiguation for Adaptive Skip-gram models from
+Python.
 
 ## Build and import
 
@@ -17,7 +18,8 @@ The raw Cargo output is named `libpyadagram.so` on Linux, but the
 Python module is imported as `adagram`. For `import adagram` to work, the
 shared library must be available under the module name expected by Python. 
 
-To make the import work, copy or link the built library in `./target/release/libadagram.so` to `adagram.so` and place it in the directory with your script or on `PYTHONPATH`.
+To make the import work, copy or link `./target/release/libpyadagram.so` to
+`adagram.so` and place it in the directory with your script or on `PYTHONPATH`.
 
 ## Python API
 
@@ -29,17 +31,62 @@ model = adagram.Model(model_path)
 
 Methods:
 
+- `model.id_range()` returns the number of word IDs in the model.
+- `model.dim()` returns the true embedding dimension, without internal SIMD
+  padding.
+- `model.id2str(word_id)` returns the word for an ID. An invalid ID raises
+  `IndexError`.
+- `model.str2id(word)` returns the word ID or `None` when the word is not in
+  the lexicon.
+- `model.counts(word_id)` returns the raw learned count for every sense slot.
+- `model.embedding(word_id, sense_id, *, normalize=False)` returns one sense
+  embedding. Invalid IDs raise `IndexError`; an inactive sense raises
+  `ValueError`.
+- `model.embeddings_sent(words, *, weighted=True, normalize=False, window=None,
+  min_prob=1e-3)` returns one contextual embedding per input token. The result
+  contains a float list for each known word and `None` for each OOV word. With
+  `weighted=True`, each vector is the posterior-weighted mean of its sense
+  vectors; with `weighted=False`, it is the MAP sense vector.
 - `model.nearest(word, senseno, num_neighbors=10, min_freq=5, min_prob=1e-3)`
   returns nearest neighbors for one sense as
   `[(neighbor_word, neighbor_sense, similarity), ...]`
 - `model.nearest_all(word, num_neighbors=10, min_freq=5, min_prob=1e-3)`
   returns neighbors for all active senses as
   `[(sense_no, neighbors), ...]`
-- `model.desamb(word, ctx)` returns
+- `model.disamb(word, ctx, *, min_prob=1e-3)` returns
   `(sense_distribution, (num_senses, ctx_valid, ctx_oov))`
 
-Unknown headwords raise `ValueError`. Model loading failures are reported as
-runtime errors from the underlying Rust loader.
+`embeddings` accepts a pre-tokenized sequence of strings. Its context window is
+symmetric and excludes only the current token position. An explicit `window`
+overrides the default; `window=0` uses the full sentence. When omitted, the
+window is inferred from a `.wN.` component in the model path, with a fallback
+of 4 tokens on each side. OOV context words are ignored, and a known word with
+no known context uses its learned sense prior.
+
+Unknown headwords passed to `nearest`, `nearest_all`, or `disamb` raise
+`ValueError`. Model loading failures are reported as runtime errors from the
+underlying Rust loader.
+
+## Embedding example
+
+```python
+import adagram
+
+model = adagram.Model("model.w4.bin")
+
+bank_id = model.str2id("bank-n")
+if bank_id is not None:
+    print(model.id2str(bank_id))
+    print(model.counts(bank_id))
+    bank_sense_0 = model.embedding(bank_id, 0, normalize=True)
+
+words = ["the-x", "bank-n", "raised-v", "rates-n"]
+soft_embeddings = model.embeddings(words)
+map_embeddings = model.embeddings(words, weighted=False, normalize=True)
+
+assert len(soft_embeddings) == len(words)
+assert soft_embeddings[0] is None or len(soft_embeddings[0]) == model.dim()
+```
 
 ## Appendix example
 
@@ -60,7 +107,7 @@ nns[2]   # sense 2: power bank
 nns[4]   # sense 4: river bank
 # (4, [('edge-n', 8, 0.922), ('eastern-j', 3, 0.908)])
 
-sdist, (nsenses, ctx_valid, ctx_oov) = model.desamb(
+sdist, (nsenses, ctx_valid, ctx_oov) = model.disamb(
     "bank-n",
     ["charge-v", "phone-n"],
 )
