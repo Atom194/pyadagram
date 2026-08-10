@@ -8,18 +8,28 @@ Python.
 
 ## Build and import
 
+### With cargo
+
 Build the extension module with Cargo:
 
 ```bash
 cargo build --release
 ```
 
-The raw Cargo output is named `libpyadagram.so` on Linux, but the
+The raw Cargo output is named `libadagram.so` on Linux, but the
 Python module is imported as `adagram`. For `import adagram` to work, the
 shared library must be available under the module name expected by Python. 
 
-To make the import work, copy or link `./target/release/libpyadagram.so` to
+To make the import work, copy or link `./target/release/libadagram.so` to
 `adagram.so` and place it in the directory with your script or on `PYTHONPATH`.
+
+### With pip
+
+Add the module using pip:
+
+```bash
+pip install git+https://github.com/ondra/pyadagram
+```
 
 ## Python API
 
